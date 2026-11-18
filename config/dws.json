@@ -1,0 +1,14 @@
+{
+  "mode": "mock",
+  "out_dir": "/tmp/dws_out",
+  "instruments": ["rb2501", "cu2501", "i2501", "m2501"],
+  "variety_code": { "rb": 108, "cu": 102, "i": 109, "m": 117 },
+  "ctp": {
+    "front": "",
+    "broker_id": "",
+    "user_id": "",
+    "password": "",
+    "app_id": "",
+    "auth_code": ""
+  }
+}
