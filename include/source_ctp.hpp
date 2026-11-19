@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "source.hpp"
+#include "time_util.hpp"
 
 #ifdef DWS_HAVE_CTP
 #include "ThostFtdcMdApi.h"
@@ -49,7 +50,8 @@ public:
 	bool Subscribe(const std::vector<std::string> &instruments) override
 	{
 		m_subs = instruments;
-		m_subscribed = false;   // 登录成功后由 OnFrontConnected 之后触发
+		m_subscribed.store(false);
+		if (m_alive.load()) SendSubscribe();
 		return true;
 	}
 
@@ -82,19 +84,32 @@ public:
 	// ── CTP 回调 ──────────────────────────────────────────────────────
 	void OnFrontConnected() override
 	{
-		CThostFtdcReqUserLoginField req;
-		std::memset(&req, 0, sizeof(req));
-		std::strncpy(req.BrokerID, m_cfg.broker_id.c_str(), sizeof(req.BrokerID) - 1);
-		std::strncpy(req.UserID, m_cfg.user_id.c_str(), sizeof(req.UserID) - 1);
-		std::strncpy(req.Password, m_cfg.password.c_str(), sizeof(req.Password) - 1);
-		m_api->ReqUserLogin(&req, 0);
+		// 大多数期货公司要求先 AppID/AuthCode 鉴权，再登录
+		if (!m_cfg.app_id.empty() || !m_cfg.auth_code.empty())
+			SendAuthenticate();
+		else
+			SendLogin();
 	}
 
 	void OnFrontDisconnected(int reason) override
 	{
 		// 由外部循环负责重连；这里只标记不可用
 		m_alive.store(false);
+		m_subscribed.store(false);
 		std::fprintf(stderr, "[DWS][CTP] front disconnected: %d\n", reason);
+	}
+
+	void OnRspAuthenticate(CThostFtdcRspAuthenticateField *, CThostFtdcRspInfoField *pInfo,
+	                       int, bool) override
+	{
+		if (pInfo && pInfo->ErrorID != 0)
+		{
+			std::fprintf(stderr, "[DWS][CTP] authenticate failed: %d %s\n",
+			             pInfo->ErrorID, pInfo->ErrorMsg);
+			m_alive.store(false);
+			return;
+		}
+		SendLogin();
 	}
 
 	void OnRspUserLogin(CThostFtdcRspUserLoginField *pRsp, CThostFtdcRspInfoField *pInfo, int, bool) override
@@ -104,16 +119,8 @@ public:
 			std::fprintf(stderr, "[DWS][CTP] login failed: %d %s\n", pInfo->ErrorID, pInfo->ErrorMsg);
 			return;
 		}
-		// 需要 AppID/AuthCode 的柜台要先 ReqAuthenticate，此处略（见 README TODO）
 		m_alive.store(true);
-		if (!m_subscribed && !m_subs.empty())
-		{
-			std::vector<char *> arr;
-			arr.reserve(m_subs.size());
-			for (auto &s : m_subs) arr.push_back(const_cast<char *>(s.c_str()));
-			m_api->SubscribeMarketData(arr.data(), static_cast<int>(arr.size()));
-			m_subscribed = true;
-		}
+		SendSubscribe();
 	}
 
 	void OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *d) override
@@ -133,17 +140,58 @@ public:
 		s.bid_vol[0] = d->BidVolume1;
 		s.ask_vol[0] = d->AskVolume1;
 		s.trading_day = d->TradingDay ? std::atoi(d->TradingDay) : 0;
-		// UpdateTime(HH:MM:SS) + UpdateMillisec → epoch ms 由 BarBuilder 侧处理
-		s.ts_ms = 0;   // TODO: 按 ActionDay + UpdateTime 拼毫秒
+		// ActionDay 是自然日（夜盘 21:00 仍是当天）；交易日由 TradingDay 表示
+		const int action_day = (d->ActionDay && d->ActionDay[0])
+		                           ? std::atoi(d->ActionDay)
+		                           : s.trading_day;
+		s.ts_ms = MakeEpochMs(action_day, d->UpdateTime, d->UpdateMillisec);
+		if (s.ts_ms == 0)
+		{
+			std::fprintf(stderr, "[DWS][CTP] bad time: ActionDay=%s UpdateTime=%s ms=%d\n",
+			             d->ActionDay, d->UpdateTime, d->UpdateMillisec);
+			return;
+		}
 		std::lock_guard<std::mutex> lk(m_mtx);
 		m_q.push(std::move(s));
 	}
 
 private:
+	void SendAuthenticate()
+	{
+		CThostFtdcReqAuthenticateField req;
+		std::memset(&req, 0, sizeof(req));
+		std::strncpy(req.BrokerID, m_cfg.broker_id.c_str(), sizeof(req.BrokerID) - 1);
+		std::strncpy(req.UserID, m_cfg.user_id.c_str(), sizeof(req.UserID) - 1);
+		std::strncpy(req.AppID, m_cfg.app_id.c_str(), sizeof(req.AppID) - 1);
+		std::strncpy(req.AuthCode, m_cfg.auth_code.c_str(), sizeof(req.AuthCode) - 1);
+		m_api->ReqAuthenticate(&req, ++m_reqid);
+	}
+
+	void SendLogin()
+	{
+		CThostFtdcReqUserLoginField req;
+		std::memset(&req, 0, sizeof(req));
+		std::strncpy(req.BrokerID, m_cfg.broker_id.c_str(), sizeof(req.BrokerID) - 1);
+		std::strncpy(req.UserID, m_cfg.user_id.c_str(), sizeof(req.UserID) - 1);
+		std::strncpy(req.Password, m_cfg.password.c_str(), sizeof(req.Password) - 1);
+		m_api->ReqUserLogin(&req, ++m_reqid);
+	}
+
+	void SendSubscribe()
+	{
+		if (m_subscribed.load() || m_subs.empty()) return;
+		std::vector<char *> arr;
+		arr.reserve(m_subs.size());
+		for (auto &s : m_subs) arr.push_back(const_cast<char *>(s.c_str()));
+		m_api->SubscribeMarketData(arr.data(), static_cast<int>(arr.size()));
+		m_subscribed.store(true);
+	}
+
 	Config m_cfg;
 	CThostFtdcMdApi *m_api = nullptr;
 	std::vector<std::string> m_subs;
-	bool m_subscribed = false;
+	std::atomic<bool> m_subscribed{false};
+	std::atomic<int> m_reqid{0};
 	std::atomic<bool> m_alive{false};
 	std::mutex m_mtx;
 	std::queue<Snapshot> m_q;

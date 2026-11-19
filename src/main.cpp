@@ -20,12 +20,14 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "pipeline.hpp"
 #include "source.hpp"
+#include "source_ctp.hpp"
 
 namespace {
 
@@ -127,7 +129,7 @@ int main(int argc, char **argv)
 	};
 	dws::BarBuilder builder(onBar, codeMap);
 
-	// 数据源：目前只有 mock；CTP 版本在 source_ctp.hpp（待前置就绪）
+	// 数据源：mock 或 CTP（CTP 需要编译时链接官方库）
 	std::unique_ptr<dws::ISource> src;
 	if (mode == "mock")
 	{
@@ -135,9 +137,30 @@ int main(int argc, char **argv)
 		m->SetBaseTime(1735689600000LL);
 		src = std::move(m);
 	}
+	else if (mode == "ctp")
+	{
+#ifdef DWS_HAVE_CTP
+		dws::CtpMdSource::Config cc;
+		cc.front = JStr(cfg, "front");
+		cc.broker_id = JStr(cfg, "broker_id");
+		cc.user_id = JStr(cfg, "user_id");
+		cc.password = JStr(cfg, "password");
+		cc.app_id = JStr(cfg, "app_id");
+		cc.auth_code = JStr(cfg, "auth_code");
+		if (cc.front.empty() || cc.broker_id.empty() || cc.user_id.empty())
+		{
+			std::fprintf(stderr, "[DWS] mode=ctp 需要 ctp.front/broker_id/user_id\n");
+			return 2;
+		}
+		src = std::make_unique<dws::CtpMdSource>(std::move(cc));
+#else
+		std::fprintf(stderr, "[DWS] mode=ctp 但编译时未启用 DWS_HAVE_CTP（缺第三方库）\n");
+		return 2;
+#endif
+	}
 	else
 	{
-		std::fprintf(stderr, "[DWS] mode=%s 尚未实现（缺 CTP 库/前置）\n", mode.c_str());
+		std::fprintf(stderr, "[DWS] unknown mode=%s\n", mode.c_str());
 		return 2;
 	}
 

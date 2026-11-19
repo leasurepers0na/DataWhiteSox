@@ -21,6 +21,14 @@ if(DWS_BUILD_TESTS)
   target_include_directories(dws_time_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_options(dws_time_test PRIVATE -O2 -Wall)
   add_test(NAME dws_time_test COMMAND dws_time_test)
+
+  # Syntax-check source_ctp.hpp without the official CTP SDK
+  add_executable(dws_ctp_syntax tests/test_ctp_syntax.cpp)
+  target_include_directories(dws_ctp_syntax PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/stub
+    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_compile_definitions(dws_ctp_syntax PRIVATE DWS_HAVE_CTP=1)
+  target_compile_options(dws_ctp_syntax PRIVATE -O2 -Wall)
 endif()
 
 # Link CTP if third_party/ctp/libthostmduserapi_se.so exists

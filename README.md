@@ -106,6 +106,19 @@ python3 tools/verify_bin.py /tmp/dws_out/202501.bin
    target_link_libraries(dws PRIVATE ${CMAKE_SOURCE_DIR}/third_party/ctp/libthostmduserapi_se.so)
    ```
 
+已实现的鉴权顺序：
+
+```
+OnFrontConnected
+  → 有 AppID/AuthCode：ReqAuthenticate
+  → 无：ReqUserLogin
+OnRspAuthenticate（成功）→ ReqUserLogin
+OnRspUserLogin（成功）→ SubscribeMarketData
+```
+
+无官方库时 `mode=ctp` 会明确报错；`tests/stub/ThostFtdcMdApi.h` 只用于
+`dws_ctp_syntax` 的语法编译检查，不是 SDK。
+
 ### CTP 关键点
 
 ```
@@ -153,6 +166,7 @@ FR 的 his 模式：收盘后直接用 DWS 产出的月度文件回放
 ✅ 月度二进制 + 索引（FBM1 20B 头 + 96B 记录，FR 月度读取路径可校验）
 ✅ tools/verify_bin.py（头/大小/索引计数一致性）
 ✅ CTP 时间转换 time_util.hpp + 单测（8/8 PASS）
-⏳ CTP 适配（缺库与前置，代码在 source_ctp.hpp）
+✅ CTP 鉴权骨架：AppID/AuthCode → Login → Subscribe（stub 语法编译）
+⏳ CTP 实盘（缺库与前置）
 ⏳ 断线重连
 ```
