@@ -88,11 +88,8 @@ public:
 	void OnFrontConnected() override
 	{
 		m_state.store(kConnecting);
-		// 大多数期货公司要求先 AppID/AuthCode 鉴权，再登录
-		if (!m_cfg.app_id.empty() || !m_cfg.auth_code.empty())
-			SendAuthenticate();
-		else
-			SendLogin();
+		// MdApi 没有 ReqAuthenticate（认证是 TraderApi 的），连接后直接登录。
+		SendLogin();
 	}
 
 	void OnFrontDisconnected(int reason) override
@@ -100,20 +97,6 @@ public:
 		m_state.store(kDown);
 		m_cv.notify_all();
 		std::fprintf(stderr, "[DWS][CTP] front disconnected: %d\n", reason);
-	}
-
-	void OnRspAuthenticate(CThostFtdcRspAuthenticateField *, CThostFtdcRspInfoField *pInfo,
-	                       int, bool) override
-	{
-		if (pInfo && pInfo->ErrorID != 0)
-		{
-			std::fprintf(stderr, "[DWS][CTP] authenticate failed: %d %s\n",
-			             pInfo->ErrorID, pInfo->ErrorMsg);
-			m_state.store(kDown);
-			m_cv.notify_all();
-			return;
-		}
-		SendLogin();
 	}
 
 	void OnRspUserLogin(CThostFtdcRspUserLoginField *, CThostFtdcRspInfoField *pInfo,
@@ -220,19 +203,6 @@ private:
 			backoff = std::min(backoff * 2, 30);
 		}
 		StopApi();
-	}
-
-	void SendAuthenticate()
-	{
-		CThostFtdcMdApi *api = m_api.load();
-		if (!api) return;
-		CThostFtdcReqAuthenticateField req;
-		std::memset(&req, 0, sizeof(req));
-		std::strncpy(req.BrokerID, m_cfg.broker_id.c_str(), sizeof(req.BrokerID) - 1);
-		std::strncpy(req.UserID, m_cfg.user_id.c_str(), sizeof(req.UserID) - 1);
-		std::strncpy(req.AppID, m_cfg.app_id.c_str(), sizeof(req.AppID) - 1);
-		std::strncpy(req.AuthCode, m_cfg.auth_code.c_str(), sizeof(req.AuthCode) - 1);
-		api->ReqAuthenticate(&req, ++m_reqid);
 	}
 
 	void SendLogin()
