@@ -46,6 +46,23 @@ make -j 8
 
 **账号绝不硬编码**，可写在配置或通过环境变量注入（见 `ctp` 段）。
 
+### 实时 FIFO（可选）
+
+```json
+"live_fifo": "/run/dws/live.fifo"
+```
+
+- 每根 1min `Bar1Min` 额外写 96B 到命名管道，供 FR real 读取
+- 无读者时 `open(O_WRONLY|O_NONBLOCK)` 失败，只告警一次，不影响月度 bin
+- 留空则完全不启用
+
+```bash
+mkfifo /tmp/dws.fifo
+cat /tmp/dws.fifo > /tmp/dws.fifo.out &
+./dws --config config/dws.json
+# 校验：/tmp/dws.fifo.out 大小 = N*96，内容与月度 bin 的记录段一致
+```
+
 ## 4. 运行
 
 ```bash

@@ -25,6 +25,7 @@
 #include <thread>
 #include <vector>
 
+#include "live_fifo.hpp"
 #include "pipeline.hpp"
 #include "source.hpp"
 #include "source_ctp.hpp"
@@ -93,6 +94,7 @@ int main(int argc, char **argv)
 
 	const std::string mode = JStr(cfg, "mode", "mock");
 	const std::string outDir = JStr(cfg, "out_dir", "./out");
+	const std::string liveFifoPath = JStr(cfg, "live_fifo", "");
 	auto instruments = JStrArray(cfg, "instruments");
 	if (instruments.empty()) instruments = {"rb2501", "cu2501"};
 
@@ -144,6 +146,7 @@ int main(int argc, char **argv)
 		            "password=%s app_id=%s auth_code=%s\n",
 		            compiled, mark(front), mark(broker), mark(user),
 		            mark(password), mark(appid), mark(auth));
+		std::printf("[DWS] check live_fifo=%s\n", mark(liveFifoPath));
 		if (mode == "ctp")
 		{
 			const bool ready = compiled && !front.empty() && !broker.empty() &&
@@ -155,8 +158,12 @@ int main(int argc, char **argv)
 	}
 
 	dws::BinSink sink(outDir);
+	dws::LiveFifo liveFifo(liveFifoPath);
+	if (!liveFifoPath.empty())
+		std::printf("[DWS] live_fifo=%s\n", liveFifoPath.c_str());
 	auto onBar = [&](const std::string &inst, const dws::Bar1Min &b) {
 		sink.Write(b);
+		liveFifo.Write(b);
 		std::printf("[DWS] bar inst=%s day=%d t=%llu O=%.2f C=%.2f vol=%d\n",
 					inst.c_str(), b.tradingday, (unsigned long long)b.time,
 					b.open, b.close, b.volume);
