@@ -115,6 +115,19 @@ python3 tools/verify_bin.py /tmp/dws_out/202501.bin
 · 同一账号的行情连接数有限（通常 1~3）
 ```
 
+### 时间转换
+
+`include/time_util.hpp` 的 `MakeEpochMs(action_day, "HH:MM:SS", millisec)`：
+
+```
+2025-01-02 21:00:00.500 +08  → 1735822800500
+2025-01-02 09:00:00.000 +08  → 1735779600000
+```
+
+- 只算「时间」；交易日用 CTP 的 `TradingDay`（夜盘归下一交易日）
+- 不依赖 `timegm` / 本地时区，用 days_from_civil
+- 单测：`./build/dws_time_test`（8 项，含闰年/非法输入）
+
 ## 6. 扩展交易所
 
 `instruments` 里写全即可，CTP 一次订阅覆盖 SHFE/INE/DCE/CZCE/CFFEX/GFEX：
@@ -139,6 +152,7 @@ FR 的 his 模式：收盘后直接用 DWS 产出的月度文件回放
 ✅ 500ms → 1min bar
 ✅ 月度二进制 + 索引（FBM1 20B 头 + 96B 记录，FR 月度读取路径可校验）
 ✅ tools/verify_bin.py（头/大小/索引计数一致性）
+✅ CTP 时间转换 time_util.hpp + 单测（8/8 PASS）
 ⏳ CTP 适配（缺库与前置，代码在 source_ctp.hpp）
 ⏳ 断线重连
 ```

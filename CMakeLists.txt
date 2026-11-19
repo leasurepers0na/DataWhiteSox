@@ -13,7 +13,17 @@ file(GLOB SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 add_executable(dws ${SRC})
 target_compile_options(dws PRIVATE -O2 -Wall)
 
-# 若存在 CTP 库则自动链接（third_party/ctp）
+# Optional unit tests (no CTP library required)
+option(DWS_BUILD_TESTS "Build DWS unit tests" ON)
+if(DWS_BUILD_TESTS)
+  enable_testing()
+  add_executable(dws_time_test tests/test_time.cpp)
+  target_include_directories(dws_time_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_compile_options(dws_time_test PRIVATE -O2 -Wall)
+  add_test(NAME dws_time_test COMMAND dws_time_test)
+endif()
+
+# Link CTP if third_party/ctp/libthostmduserapi_se.so exists
 set(CTP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ctp)
 if(EXISTS ${CTP_DIR}/libthostmduserapi_se.so)
   target_include_directories(dws PRIVATE ${CTP_DIR})
