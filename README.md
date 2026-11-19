@@ -158,6 +158,14 @@ OnRspUserLogin（成功）→ SubscribeMarketData
 无官方库时 `mode=ctp` 会明确报错；`tests/stub/ThostFtdcMdApi.h` 只用于
 `dws_ctp_syntax` 的语法编译检查，不是 SDK。
 
+有真实 CTP 头文件时，可只做语法检查（不链接、不登录）：
+
+```bash
+cmake -S . -B build-syntax -DDWS_BUILD_TESTS=ON \
+      -DDWS_CTP_REAL_HEADERS=/path/to/ctp/headers
+cmake --build build-syntax --target dws_ctp_real_syntax -j 8
+```
+
 断线重连：
 
 ```

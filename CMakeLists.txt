@@ -29,6 +29,18 @@ if(DWS_BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_definitions(dws_ctp_syntax PRIVATE DWS_HAVE_CTP=1)
   target_compile_options(dws_ctp_syntax PRIVATE -O2 -Wall)
+
+  # Optional: syntax-check against the real CTP headers (no library/link needed)
+  set(DWS_CTP_REAL_HEADERS "" CACHE PATH "Directory containing ThostFtdcMdApi.h")
+  if(DWS_CTP_REAL_HEADERS AND EXISTS "${DWS_CTP_REAL_HEADERS}/ThostFtdcMdApi.h")
+    add_executable(dws_ctp_real_syntax tests/test_ctp_real_syntax.cpp)
+    target_include_directories(dws_ctp_real_syntax PRIVATE
+      ${DWS_CTP_REAL_HEADERS}
+      ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_compile_definitions(dws_ctp_real_syntax PRIVATE DWS_HAVE_CTP=1)
+    target_compile_options(dws_ctp_real_syntax PRIVATE -O2 -Wall)
+    message(STATUS "DWS: real CTP header syntax test enabled: ${DWS_CTP_REAL_HEADERS}")
+  endif()
 endif()
 
 # Link CTP if third_party/ctp/libthostmduserapi_se.so exists
