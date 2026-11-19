@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <poll.h>
 #include <string>
 #include <unistd.h>
 
@@ -52,11 +53,29 @@ public:
 	{
 		if (m_path.empty()) return;
 		if (m_fd < 0 && !Open()) return;
-		const ssize_t n = ::write(m_fd, &b, sizeof(b));
-		if (n != static_cast<ssize_t>(sizeof(b)))
+		const char *p = reinterpret_cast<const char *>(&b);
+		size_t off = 0;
+		while (off < sizeof(b))
 		{
+			const ssize_t n = ::write(m_fd, p + off, sizeof(b) - off);
+			if (n > 0)
+			{
+				off += static_cast<size_t>(n);
+				continue;
+			}
+			if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+			{
+				// 0.5s 速率高，管道满时等可写，不能丢记录。
+				struct pollfd pfd;
+				pfd.fd = m_fd;
+				pfd.events = POLLOUT;
+				pfd.revents = 0;
+				::poll(&pfd, 1, 100);
+				continue;
+			}
 			std::fprintf(stderr, "[DWS][fifo05] write failed: %s\n", std::strerror(errno));
 			Close();
+			return;
 		}
 	}
 
