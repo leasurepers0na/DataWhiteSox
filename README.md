@@ -75,6 +75,16 @@ cat /tmp/dws.fifo > /tmp/dws.fifo.out &
 # 校验：/tmp/dws.fifo.out 大小 = N*96，内容与月度 bin 的记录段一致
 ```
 
+### 0.5s 子 bar FIFO（可选）
+
+```json
+"live_fifo_05s": "/run/dws/live_05s.fifo"
+```
+
+- 每 500ms 写一条 184B `FutureData`（OHLC、累计量差分、5 档 book）；
+- 供 FR real 的 `data_flag=1` 因子使用；
+- 与 1min `live_fifo` 独立，留空不启用。
+
 ## 4. 运行
 
 ```bash

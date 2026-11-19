@@ -25,7 +25,9 @@
 #include <thread>
 #include <vector>
 
+#include "bar05.hpp"
 #include "live_fifo.hpp"
+#include "live_fifo05.hpp"
 #include "pipeline.hpp"
 #include "source.hpp"
 #include "source_ctp.hpp"
@@ -95,6 +97,7 @@ int main(int argc, char **argv)
 	const std::string mode = JStr(cfg, "mode", "mock");
 	const std::string outDir = JStr(cfg, "out_dir", "./out");
 	const std::string liveFifoPath = JStr(cfg, "live_fifo", "");
+	const std::string liveFifo05Path = JStr(cfg, "live_fifo_05s", "");
 	const int mockMinutes = std::atoi(JStr(cfg, "mock_minutes", "3").c_str());
 	const int mockTradingDay = std::atoi(JStr(cfg, "mock_trading_day", "20250101").c_str());
 	const long long mockBaseMs = std::atoll(JStr(cfg, "mock_base_ms", "1735689600000").c_str());
@@ -150,6 +153,7 @@ int main(int argc, char **argv)
 		            compiled, mark(front), mark(broker), mark(user),
 		            mark(password), mark(appid), mark(auth));
 		std::printf("[DWS] check live_fifo=%s\n", mark(liveFifoPath));
+		std::printf("[DWS] check live_fifo_05s=%s\n", mark(liveFifo05Path));
 		if (mode == "ctp")
 		{
 			const bool ready = compiled && !front.empty() && !broker.empty() &&
@@ -164,6 +168,12 @@ int main(int argc, char **argv)
 	dws::LiveFifo liveFifo(liveFifoPath);
 	if (!liveFifoPath.empty())
 		std::printf("[DWS] live_fifo=%s\n", liveFifoPath.c_str());
+	dws::LiveFifo05 liveFifo05(liveFifo05Path);
+	if (!liveFifo05Path.empty())
+		std::printf("[DWS] live_fifo_05s=%s\n", liveFifo05Path.c_str());
+	auto onBar05 = [&](const std::string &, const dws::FutureData05 &b) {
+		liveFifo05.Write(b);
+	};
 	auto onBar = [&](const std::string &inst, const dws::Bar1Min &b) {
 		sink.Write(b);
 		liveFifo.Write(b);
@@ -172,6 +182,7 @@ int main(int argc, char **argv)
 					b.open, b.close, b.volume);
 	};
 	dws::BarBuilder builder(onBar, codeMap);
+	dws::BarBuilder05 builder05(onBar05, codeMap);
 
 	// 数据源：mock 或 CTP（CTP 需要编译时链接官方库）
 	std::unique_ptr<dws::ISource> src;
@@ -241,9 +252,14 @@ int main(int argc, char **argv)
 			continue;
 		}
 		idle = 0;
-		for (const auto &s : batch) builder.OnSnapshot(s);
+		for (const auto &s : batch)
+		{
+			builder.OnSnapshot(s);
+			if (liveFifo05.Enabled()) builder05.OnSnapshot(s);
+		}
 	}
 	builder.Flush();
+	builder05.Flush();
 	sink.Close();
 	src->Close();
 	std::printf("[DWS] done\n");

@@ -2,6 +2,7 @@
   "mode": "mock",
   "out_dir": "/tmp/dws_out",
   "live_fifo": "",
+  "live_fifo_05s": "",
   "mock_minutes": "3",
   "mock_trading_day": "20250101",
   "mock_base_ms": "1735689600000",
