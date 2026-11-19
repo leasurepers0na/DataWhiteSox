@@ -46,6 +46,18 @@ make -j 8
 
 **账号绝不硬编码**，可写在配置或通过环境变量注入（见 `ctp` 段）。
 
+mock 模式可选字段（用于把 mock 对齐到历史某天）：
+
+```json
+"mock_minutes": "3",
+"mock_trading_day": "20221230",
+"mock_base_ms": "1672362000000"
+```
+
+- `mock_minutes`：生成的 1min bar 数
+- `mock_trading_day`：写入 Bar1Min 的 tradingday
+- `mock_base_ms`：第一根 bar 的 epoch ms
+
 ### 实时 FIFO（可选）
 
 ```json

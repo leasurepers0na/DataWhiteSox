@@ -95,6 +95,9 @@ int main(int argc, char **argv)
 	const std::string mode = JStr(cfg, "mode", "mock");
 	const std::string outDir = JStr(cfg, "out_dir", "./out");
 	const std::string liveFifoPath = JStr(cfg, "live_fifo", "");
+	const int mockMinutes = std::atoi(JStr(cfg, "mock_minutes", "3").c_str());
+	const int mockTradingDay = std::atoi(JStr(cfg, "mock_trading_day", "20250101").c_str());
+	const long long mockBaseMs = std::atoll(JStr(cfg, "mock_base_ms", "1735689600000").c_str());
 	auto instruments = JStrArray(cfg, "instruments");
 	if (instruments.empty()) instruments = {"rb2501", "cu2501"};
 
@@ -174,8 +177,9 @@ int main(int argc, char **argv)
 	std::unique_ptr<dws::ISource> src;
 	if (mode == "mock")
 	{
-		auto m = std::make_unique<dws::MockSource>(instruments, 3);
-		m->SetBaseTime(1735689600000LL);
+		auto m = std::make_unique<dws::MockSource>(instruments, mockMinutes,
+		                                           mockTradingDay,
+		                                           static_cast<std::int64_t>(mockBaseMs));
 		src = std::move(m);
 	}
 	else if (mode == "ctp")

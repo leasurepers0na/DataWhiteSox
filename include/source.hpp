@@ -66,8 +66,11 @@ public:
 class MockSource : public ISource
 {
 public:
-	MockSource(std::vector<std::string> instruments, int minutes = 5)
-		: m_inst(std::move(instruments)), m_minutes(minutes) {}
+	MockSource(std::vector<std::string> instruments, int minutes = 5,
+	           int trading_day = 20250101,
+	           std::int64_t base_ms = 1735689600000LL)
+		: m_inst(std::move(instruments)), m_minutes(minutes),
+		  m_trading_day(trading_day), m_base_ms(base_ms) {}
 
 	bool Connect() override { m_alive = true; return true; }
 	bool Subscribe(const std::vector<std::string> &) override { return m_alive; }
@@ -95,7 +98,7 @@ public:
 				s.bid_vol[i] = 10 + i;
 				s.ask_vol[i] = 12 + i;
 			}
-			s.trading_day = 20250101;
+			s.trading_day = m_trading_day;
 			out.push_back(std::move(s));
 		}
 		++m_tick;
@@ -111,6 +114,7 @@ private:
 	std::vector<std::string> m_inst;
 	int m_minutes;
 	int m_tick = 0;
+	int m_trading_day = 20250101;
 	bool m_alive = false;
 	std::int64_t m_base_ms = 1735689600000LL;   // 2025-01-01 08:00 UTC+8
 };
