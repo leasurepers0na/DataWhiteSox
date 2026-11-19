@@ -171,13 +171,27 @@ int main(int argc, char **argv)
 	}
 
 	std::vector<dws::Snapshot> batch;
+	const bool ctpMode = (mode == "ctp");
 	int idle = 0;
 	for (;;)
 	{
 		if (!src->Poll(batch))
 		{
-			if (!src->Alive()) break;
-			if (++idle > 20) break;      // mock 模式跑完即退出
+			if (!src->Alive())
+			{
+				if (!ctpMode) break;
+				// CTP 断线/登录中：supervisor 会退避重连，主循环不要退出
+				idle = 0;
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				continue;
+			}
+			if (++idle > 20)
+			{
+				if (!ctpMode) break;      // mock 模式跑完即退出
+				idle = 0;
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				continue;
+			}
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 			continue;
 		}

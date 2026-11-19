@@ -119,6 +119,16 @@ OnRspUserLogin（成功）→ SubscribeMarketData
 无官方库时 `mode=ctp` 会明确报错；`tests/stub/ThostFtdcMdApi.h` 只用于
 `dws_ctp_syntax` 的语法编译检查，不是 SDK。
 
+断线重连：
+
+```
+CtpMdSource 内部 supervisor 线程
+  · 登录/鉴权回调只置状态 + notify
+  · 断线或 20s 未登录 → StopApi（RegisterSpi(nullptr) + Release）
+  · 退避 1s→2s→…→30s 重建 API，重新鉴权/登录/订阅
+  · Release 不在 CTP 回调线程里调用
+```
+
 ### CTP 关键点
 
 ```
@@ -167,6 +177,7 @@ FR 的 his 模式：收盘后直接用 DWS 产出的月度文件回放
 ✅ tools/verify_bin.py（头/大小/索引计数一致性）
 ✅ CTP 时间转换 time_util.hpp + 单测（8/8 PASS）
 ✅ CTP 鉴权骨架：AppID/AuthCode → Login → Subscribe（stub 语法编译）
+✅ 断线重连骨架：supervisor + 1→30s 退避 + 重鉴权/重订阅（stub 语法编译）
 ⏳ CTP 实盘（缺库与前置）
-⏳ 断线重连
+⏳ 实盘数据 → FR real 模式接入
 ```
