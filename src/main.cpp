@@ -77,8 +77,12 @@ std::vector<std::string> JStrArray(const std::string &s, const std::string &k)
 int main(int argc, char **argv)
 {
 	std::string cfgPath = "config/dws.json";
+	bool checkOnly = false;
 	for (int i = 1; i < argc; ++i)
+	{
 		if (std::strcmp(argv[i], "--config") == 0 && i + 1 < argc) cfgPath = argv[++i];
+		else if (std::strcmp(argv[i], "--check") == 0) checkOnly = true;
+	}
 
 	const std::string cfg = ReadFile(cfgPath);
 	if (cfg.empty())
@@ -119,6 +123,36 @@ int main(int argc, char **argv)
 	}
 
 	std::printf("[DWS] mode=%s out=%s instruments=%zu\n", mode.c_str(), outDir.c_str(), instruments.size());
+
+	if (checkOnly)
+	{
+		auto mark = [](const std::string &s) -> const char * {
+			return s.empty() ? "missing" : "set";
+		};
+		const std::string front = JStr(cfg, "front");
+		const std::string broker = JStr(cfg, "broker_id");
+		const std::string user = JStr(cfg, "user_id");
+		const std::string password = JStr(cfg, "password");
+		const std::string appid = JStr(cfg, "app_id");
+		const std::string auth = JStr(cfg, "auth_code");
+#ifdef DWS_HAVE_CTP
+		const int compiled = 1;
+#else
+		const int compiled = 0;
+#endif
+		std::printf("[DWS] check compile_ctp=%d front=%s broker_id=%s user_id=%s "
+		            "password=%s app_id=%s auth_code=%s\n",
+		            compiled, mark(front), mark(broker), mark(user),
+		            mark(password), mark(appid), mark(auth));
+		if (mode == "ctp")
+		{
+			const bool ready = compiled && !front.empty() && !broker.empty() &&
+			                   !user.empty() && !password.empty();
+			std::printf("[DWS] ctp_ready=%d\n", ready ? 1 : 0);
+			return ready ? 0 : 1;
+		}
+		return 0;
+	}
 
 	dws::BinSink sink(outDir);
 	auto onBar = [&](const std::string &inst, const dws::Bar1Min &b) {
