@@ -131,7 +131,7 @@ python3 tools/verify_bin.py /tmp/dws_out/202501.bin
    - 行情前置地址 `tcp://ip:port`
    - `BrokerID`
    - 行情账号 / 密码
-   - `AppID` / `AuthCode`（很多公司需要）
+   - `AppID` / `AuthCode`（可选；MdApi 不使用，认证是 TraderApi 的）
 2. 把 CTP 官方 Linux x64 库放到 `third_party/ctp/`：
    ```
    libthostmduserapi_se.so
@@ -149,9 +149,9 @@ python3 tools/verify_bin.py /tmp/dws_out/202501.bin
 
 ```
 OnFrontConnected
-  → 有 AppID/AuthCode：ReqAuthenticate
-  → 无：ReqUserLogin
-OnRspAuthenticate（成功）→ ReqUserLogin
+  → ReqUserLogin（MdApi 没有认证步骤）
+OnRspUserLogin
+  → SubscribeMarketData
 OnRspUserLogin（成功）→ SubscribeMarketData
 ```
 
@@ -215,7 +215,7 @@ FR 的 his 模式：收盘后直接用 DWS 产出的月度文件回放
 ✅ 月度二进制 + 索引（FBM1 20B 头 + 96B 记录，FR 月度读取路径可校验）
 ✅ tools/verify_bin.py（头/大小/索引计数一致性）
 ✅ CTP 时间转换 time_util.hpp + 单测（8/8 PASS）
-✅ CTP 鉴权骨架：AppID/AuthCode → Login → Subscribe（stub 语法编译）
+✅ CTP md 登录骨架：OnFrontConnected → ReqUserLogin → Subscribe（stub 语法编译）
 ✅ 断线重连骨架：supervisor + 1→30s 退避 + 重鉴权/重订阅（stub 语法编译）
 ⏳ CTP 实盘（缺库与前置）
 ⏳ 实盘数据 → FR real 模式接入
