@@ -126,6 +126,28 @@ private:
 	{
 		FutureData05 b;
 		acc.Finish(b);
+		// 每个 500ms 桶只有一条快照，桶内差分恒为 0；
+		// 必须用上一桶的累计 volume/turnover 做差分。
+		double v = 0, t = 0;
+		const std::int64_t minute = acc.bucket_ms / 60000;
+		auto pm = m_prevMinute.find(inst);
+		const bool newMinute = (pm == m_prevMinute.end() || pm->second != minute);
+		auto pv = m_prevVol.find(inst);
+		if (!newMinute && pv != m_prevVol.end())
+		{
+			v = acc.vol_last - pv->second;
+			t = acc.turn_last - m_prevTurn[inst];
+		}
+		m_prevMinute[inst] = minute;
+		m_prevVol[inst] = acc.vol_last;
+		m_prevTurn[inst] = acc.turn_last;
+		if (v < 0) v = 0;
+		if (t < 0) t = 0;
+		b.volume = static_cast<std::int32_t>(v);
+		b.turnover = t;
+		b.vwap = (b.volume > 0) ? static_cast<float>(b.turnover / b.volume)
+		                       : b.close;
+		b.volume_all = b.volume;
 		std::string variety;
 		int month = 0;
 		SplitInstrument(inst, variety, month);
@@ -138,6 +160,9 @@ private:
 	OnBar m_cb;
 	std::map<std::string, int> m_code;
 	std::map<std::string, Acc> m_acc;
+	std::map<std::string, double> m_prevVol;
+	std::map<std::string, double> m_prevTurn;
+	std::map<std::string, std::int64_t> m_prevMinute;
 };
 
 } // namespace dws
