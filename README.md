@@ -65,8 +65,25 @@ mock 模式：
 
 ```
 out/
-  202501.bin      # 96 字节/条，与 FR 的 FutureData1Min 一致
+  202501.bin      # FBM1 头 20B + 96 字节/条，与 FR 的 FutureData1Min 一致
   202501.idx      # int32 ndays + 每日 (day, offset, count)
+```
+
+`202501.bin` 头布局（FR 月度读取路径要求）：
+
+```
+@0  "FBM1"          magic
+@4  uint32          记录大小 96
+@8  uint64          记录总数（Close 时回填）
+@16 uint32          保留
+数据从 @20 开始，第 i 条在 20 + i*96
+```
+
+校验产物：
+
+```bash
+python3 tools/verify_bin.py /tmp/dws_out/202501.bin
+# PASS /tmp/dws_out/202501.bin  rec=96 count=12 days=1 size=1172
 ```
 
 ## 5. 接入 CTP
@@ -120,7 +137,8 @@ FR 的 his 模式：收盘后直接用 DWS 产出的月度文件回放
 ```
 ✅ ISource 抽象 + MockSource
 ✅ 500ms → 1min bar
-✅ 月度二进制 + 索引（与 FR 布局一致）
-⏳ CTP 适配（缺库与前置，代码将放在 source_ctp.hpp）
+✅ 月度二进制 + 索引（FBM1 20B 头 + 96B 记录，FR 月度读取路径可校验）
+✅ tools/verify_bin.py（头/大小/索引计数一致性）
+⏳ CTP 适配（缺库与前置，代码在 source_ctp.hpp）
 ⏳ 断线重连
 ```

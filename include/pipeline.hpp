@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <string>
@@ -100,7 +101,11 @@ inline void SplitInstrument(const std::string &inst, std::string &variety, int &
 class BinSink
 {
 public:
-	explicit BinSink(std::string dir) : m_dir(std::move(dir)) {}
+	explicit BinSink(std::string dir) : m_dir(std::move(dir))
+	{
+		std::error_code ec;
+		std::filesystem::create_directories(m_dir, ec);
+	}
 	~BinSink() { Close(); }
 
 	void Write(const Bar1Min &b)
@@ -120,6 +125,7 @@ public:
 		if (m_file)
 		{
 			m_file->flush();
+			PatchRecordCount();
 			m_file->close();
 			delete m_file;
 			m_file = nullptr;
@@ -128,6 +134,27 @@ public:
 	}
 
 private:
+	void WriteHeader()
+	{
+		// FR 的月度读取路径：先校验 "FBM1" + rec_size，再 seek 20 + off*rec。
+		// 头布局：magic[4] + rec_size(u32) + record_count(u64) + reserved(u32) = 20 字节。
+		const std::uint32_t rec = static_cast<std::uint32_t>(sizeof(Bar1Min));
+		const std::uint64_t zero = 0;
+		const std::uint32_t reserved = 0;
+		m_file->write("FBM1", 4);
+		m_file->write(reinterpret_cast<const char *>(&rec), 4);
+		m_file->write(reinterpret_cast<const char *>(&zero), 8);
+		m_file->write(reinterpret_cast<const char *>(&reserved), 4);
+	}
+
+	void PatchRecordCount()
+	{
+		const std::uint64_t total = static_cast<std::uint64_t>(m_total);
+		m_file->seekp(8, std::ios::beg);
+		m_file->write(reinterpret_cast<const char *>(&total), 8);
+		m_file->seekp(0, std::ios::end);
+	}
+
 	void OpenMonth(int month)
 	{
 		Close();
@@ -137,6 +164,8 @@ private:
 		const std::string base = m_dir + "/" + std::to_string(month);
 		m_file = new std::ofstream(base + ".bin", std::ios::binary | std::ios::trunc);
 		m_idx_base = base;
+		if (m_file && m_file->is_open())
+			WriteHeader();
 	}
 
 	void WriteIdx()
